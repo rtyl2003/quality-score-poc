@@ -381,28 +381,6 @@ if not any([reviews, complaints, quality_panel, pac, mqr, qrpmu]):
 # Sidebar Weights
 # ---------------------------
 st.sidebar.markdown("---")
-st.sidebar.header("Reviews Score Weights")
-
-default_review_sentiment_weight = 0.50
-default_review_rating_weight = 0.50
-
-review_sentiment_weight = st.sidebar.number_input(
-    "Review Sentiment Weight",
-    min_value=0.0,
-    max_value=1.0,
-    value=default_review_sentiment_weight,
-    step=0.05
-)
-review_rating_weight = st.sidebar.number_input(
-    "Average Rating Weight",
-    min_value=0.0,
-    max_value=1.0,
-    value=default_review_rating_weight,
-    step=0.05
-)
-
-review_score_total_weight = review_sentiment_weight + review_rating_weight
-
 st.sidebar.header("Quality Score Weights")
 
 default_reviews_weight = 0.20
@@ -455,6 +433,28 @@ qrpmu_weight = st.sidebar.number_input(
     step=0.05
 )
 
+st.sidebar.header("Reviews Score Weights")
+
+default_review_sentiment_weight = 0.50
+default_review_rating_weight = 0.50
+
+review_sentiment_weight = st.sidebar.number_input(
+    "Review Sentiment Weight",
+    min_value=0.0,
+    max_value=1.0,
+    value=default_review_sentiment_weight,
+    step=0.05
+)
+review_rating_weight = st.sidebar.number_input(
+    "Average Rating Weight",
+    min_value=0.0,
+    max_value=1.0,
+    value=default_review_rating_weight,
+    step=0.05
+)
+
+review_score_total_weight = review_sentiment_weight + review_rating_weight
+
 # ---------------------------
 # Score Calculation
 # ---------------------------
@@ -471,10 +471,7 @@ complaints_score = (
 panel_score = avg_attribute_score(quality_panel)
 pac_score = avg_attribute_score(pac)
 mqr_score = avg_attribute_score(mqr)
-qrpmu_score = (
-    qrpmu.get("overall_analysis", {}).get("overall_sentiment", {}).get("score", 0) * 100
-    if qrpmu else None
-)
+qrpmu_score = qrpmu.get("quality_score") if qrpmu else None
 
 available_components = []
 if reviews_score is not None:
@@ -710,6 +707,36 @@ with tab_qrpmu:
     else:
         st.write(qrpmu.get("overall_analysis", {}).get("summary", ""))
 
-        render_action_plan(qrpmu)
-        render_recommendations(qrpmu)
-        render_attributes_analysis(qrpmu)
+        qrpmu_quality_score = qrpmu.get("quality_score")
+        qrpmu_metrics = qrpmu.get("metrics", {})
+        qrpmu_timeline = qrpmu.get("timeline", [])
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Quality Score", format_metric_value(qrpmu_quality_score))
+        c2.metric("Average QRPMU", format_metric_value(qrpmu_metrics.get("average_qrpmu")))
+        c3.metric("Peak QRPMU", format_metric_value(qrpmu_metrics.get("peak_qrpmu")))
+        c4.metric("Peak Period", qrpmu_metrics.get("peak_period", "N/A"))
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Total Sales", format_metric_value(qrpmu_metrics.get("total_sales")))
+        c6.metric("Total Refunds", format_metric_value(qrpmu_metrics.get("total_refunds")))
+        c7.metric("Periods With Refunds", format_metric_value(qrpmu_metrics.get("periods_with_refunds")))
+
+        if qrpmu_timeline:
+            st.subheader("QRPMU Timeline")
+
+            df_qrpmu_timeline = pd.DataFrame(qrpmu_timeline)
+
+            if "interval" in df_qrpmu_timeline.columns and "qrpmu" in df_qrpmu_timeline.columns:
+                st.plotly_chart(
+                    px.line(
+                        df_qrpmu_timeline,
+                        x="interval",
+                        y="qrpmu",
+                        markers=True,
+                        title="QRPMU by Period"
+                    ),
+                    use_container_width=True
+                )
+
+            st.dataframe(df_qrpmu_timeline, use_container_width=True)
