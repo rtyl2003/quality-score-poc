@@ -715,7 +715,7 @@ with tab_qrpmu:
         c1.metric("Quality Score", format_metric_value(qrpmu_quality_score))
         c2.metric("Average QRPMU", format_metric_value(qrpmu_metrics.get("average_qrpmu")))
         c3.metric("Peak QRPMU", format_metric_value(qrpmu_metrics.get("peak_qrpmu")))
-        c4.metric("Peak Period", qrpmu_metrics.get("peak_period", "N/A"))
+        c4.metric("Peak Interval", qrpmu_metrics.get("peak_period", "N/A"))
 
         c5, c6, c7 = st.columns(3)
         c5.metric("Total Sales", format_metric_value(qrpmu_metrics.get("total_sales")))
@@ -734,7 +734,7 @@ with tab_qrpmu:
                         x="interval",
                         y="qrpmu",
                         markers=True,
-                        title="QRPMU by Period"
+                        title="QRPMU by Interval"
                     ),
                     use_container_width=True
                 )
