@@ -281,6 +281,15 @@ def extract_attributes(data, label):
     if not data:
         return pd.DataFrame(columns=["Source", "Attribute", "Score"])
 
+    allowed_attributes = {
+        "Taste",
+        "Texture",
+        "Pack Appeal",
+        "Value",
+        "Appearance",
+        "Aroma"
+    }
+
     return pd.DataFrame([
         {
             "Source": label,
@@ -288,6 +297,7 @@ def extract_attributes(data, label):
             "Score": a.get("score", 0)
         }
         for a in data.get("attributes_analysis", {}).get("attributes", [])
+        if a.get("attribute", "") in allowed_attributes
     ])
 
 # ---------------------------
