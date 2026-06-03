@@ -365,12 +365,27 @@ with col6:
         label_visibility="collapsed"
     )
 
+col7, col8 = st.sidebar.columns(2)
+
+with col7:
+    st.markdown("<div class='upload-label'>SPEC CHECK</div>", unsafe_allow_html=True)
+    spec_check_file = st.file_uploader(
+        "SPEC CHECK Summary JSON",
+        type=["json"],
+        key="spec_check_file",
+        label_visibility="collapsed"
+    )
+
+with col8:
+    st.empty()
+
 reviews = load_uploaded_json(reviews_file, "reviews")
 complaints = load_uploaded_json(complaints_file, "complaints")
 quality_panel = load_uploaded_json(quality_panel_file, "quality_panel")
 pac = load_uploaded_json(pac_file, "pac")
 mqr = load_uploaded_json(mqr_file, "mqr")
 qrpmu = load_uploaded_json(qrpmu_file, "qrpmu")
+spec_check = load_uploaded_json(spec_check_file, "spec_check")
 
 st.sidebar.subheader("Upload Status")
 render_upload_status_box([
@@ -379,10 +394,11 @@ render_upload_status_box([
     ("Quality Panel", quality_panel),
     ("PAC/CTH", pac),
     ("MQR", mqr),
-    ("QRPMU", qrpmu)
+    ("QRPMU", qrpmu),
+    ("SPEC CHECK", spec_check)
 ])
 
-if not any([reviews, complaints, quality_panel, pac, mqr, qrpmu]):
+if not any([reviews, complaints, quality_panel, pac, mqr, qrpmu, spec_check]):
     st.title("📊 Product Quality Summary Dashboard")
     st.info("Upload one or more summary JSON files from the sidebar to view the dashboard.")
     st.stop()
@@ -516,6 +532,7 @@ base_product_info = (
     (quality_panel or {}).get("product_info") or
     (pac or {}).get("product_info") or
     (mqr or {}).get("product_info") or
+    (spec_check or {}).get("product_info") or
     (qrpmu or {}).get("product_info") or
     {}
 )
@@ -565,7 +582,7 @@ c7.metric("QRPMU Score", format_metric_value(qrpmu_score))
 # ---------------------------
 # Tabs
 # ---------------------------
-tab_overall, tab_reviews, tab_complaints, tab_panel, tab_pac, tab_mqr, tab_qrpmu = st.tabs(
+tab_overall, tab_reviews, tab_complaints, tab_panel, tab_pac, tab_mqr, tab_spec_check, tab_qrpmu = st.tabs(
     [
         "📊 Overall Summary",
         "⭐ Reviews",
@@ -573,6 +590,7 @@ tab_overall, tab_reviews, tab_complaints, tab_panel, tab_pac, tab_mqr, tab_qrpmu
         "🧪 Quality Panel",
         "🧠 PAC/CTH",
         "📋 MQR",
+        "🧾 SPEC CHECK",
         "📦 QRPMU"
     ]
 )
@@ -607,6 +625,7 @@ with tab_overall:
         extract_attributes(quality_panel, "Panel"),
         extract_attributes(pac, "PAC"),
         extract_attributes(mqr, "MQR"),
+        extract_attributes(spec_check, "SPEC CHECK"),
         extract_attributes(qrpmu, "QRPMU")
     ], ignore_index=True)
 
@@ -705,6 +724,53 @@ with tab_mqr:
         render_action_plan(mqr)
         render_recommendations(mqr)
         render_attributes_analysis(mqr)
+
+# ============================
+# SPEC CHECK
+# ============================
+with tab_spec_check:
+    st.header("SPEC CHECK Summary")
+
+    if not spec_check:
+        render_no_data_message("SPEC CHECK")
+    else:
+        spec_check_summary = (
+            spec_check.get("analysis", {})
+            .get("analysis", {})
+            .get("summary", {})
+            .get("response_summary", "")
+        )
+        if spec_check_summary:
+            st.write(spec_check_summary)
+
+        survey_metadata = spec_check.get("survey_metadata", {})
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Survey ID", survey_metadata.get("survey_id", "N/A"))
+        c2.metric("Records", survey_metadata.get("record_count", "N/A"))
+        c3.metric("Responses", survey_metadata.get("total_responses", "N/A"))
+        c4.metric("Suppliers", len(survey_metadata.get("suppliers", [])))
+
+        questions = spec_check.get("questions", [])
+        if questions:
+            rows = []
+            for question in questions:
+                for response in question.get("responses", []):
+                    metadata = response.get("metadata", {})
+                    rows.append({
+                        "Period": metadata.get("period"),
+                        "Scheduled Date": metadata.get("scheduled_date"),
+                        "Result": metadata.get("result"),
+                        "Next Step": metadata.get("next_step"),
+                        "Supplier": metadata.get("supplier"),
+                        "Spec Number": metadata.get("spec_number"),
+                        "Spec Version": metadata.get("spec_version"),
+                        "Site Name": metadata.get("site_name")
+                    })
+
+            if rows:
+                df_spec_check = pd.DataFrame(rows)
+                st.subheader("SPEC CHECK Results")
+                st.dataframe(df_spec_check, use_container_width=True)
 
 # ============================
 # QRPMU
