@@ -377,7 +377,13 @@ with col7:
     )
 
 with col8:
-    st.empty()
+    st.markdown("<div class='upload-label'>DEPOT CHECKS</div>", unsafe_allow_html=True)
+    depot_checks_file = st.file_uploader(
+        "DEPOT CHECKS Summary JSON",
+        type=["json"],
+        key="depot_checks_file",
+        label_visibility="collapsed"
+    )
 
 reviews = load_uploaded_json(reviews_file, "reviews")
 complaints = load_uploaded_json(complaints_file, "complaints")
@@ -386,6 +392,7 @@ pac = load_uploaded_json(pac_file, "pac")
 mqr = load_uploaded_json(mqr_file, "mqr")
 qrpmu = load_uploaded_json(qrpmu_file, "qrpmu")
 spec_check = load_uploaded_json(spec_check_file, "spec_check")
+depot_checks = load_uploaded_json(depot_checks_file, "quality_checks")
 
 st.sidebar.subheader("Upload Status")
 render_upload_status_box([
@@ -395,10 +402,11 @@ render_upload_status_box([
     ("PAC/CTH", pac),
     ("MQR", mqr),
     ("QRPMU", qrpmu),
-    ("SPEC CHECK", spec_check)
+    ("SPEC CHECK", spec_check),
+    ("DEPOT CHECKS", depot_checks)
 ])
 
-if not any([reviews, complaints, quality_panel, pac, mqr, qrpmu, spec_check]):
+if not any([reviews, complaints, quality_panel, pac, mqr, qrpmu, spec_check, depot_checks]):
     st.title("📊 Product Quality Summary Dashboard")
     st.info("Upload one or more summary JSON files from the sidebar to view the dashboard.")
     st.stop()
@@ -411,10 +419,12 @@ st.sidebar.header("Quality Score Weights")
 
 default_reviews_weight = 0.20
 default_complaints_weight = 0.20
-default_panel_weight = 0.15
-default_pac_weight = 0.15
-default_mqr_weight = 0.15
-default_qrpmu_weight = 0.15
+default_panel_weight = 0.10
+default_pac_weight = 0.10
+default_mqr_weight = 0.10
+default_spec_check_weight = 0.10
+default_depot_checks_weight = 0.10
+default_qrpmu_weight = 0.10
 
 reviews_weight = st.sidebar.number_input(
     "Reviews Weight",
@@ -449,6 +459,20 @@ mqr_weight = st.sidebar.number_input(
     min_value=0.0,
     max_value=1.0,
     value=default_mqr_weight,
+    step=0.05
+)
+spec_check_weight = st.sidebar.number_input(
+    "SPEC CHECK Weight",
+    min_value=0.0,
+    max_value=1.0,
+    value=default_spec_check_weight,
+    step=0.05
+)
+depot_checks_weight = st.sidebar.number_input(
+    "DEPOT CHECKS Weight",
+    min_value=0.0,
+    max_value=1.0,
+    value=default_depot_checks_weight,
     step=0.05
 )
 qrpmu_weight = st.sidebar.number_input(
@@ -490,14 +514,13 @@ reviews_score, reviews_sentiment_score, reviews_avg_rating_score = get_reviews_s
     review_rating_weight
 )
 
-complaints_score = (
-    complaints.get("overall_analysis", {}).get("overall_sentiment", {}).get("score", 0) * 100
-    if complaints else None
-)
+complaints_score = avg_attribute_score(complaints)
 panel_score = avg_attribute_score(quality_panel)
 pac_score = avg_attribute_score(pac)
 mqr_score = avg_attribute_score(mqr)
+depot_checks_score = depot_checks.get("quality_score") if depot_checks else None
 qrpmu_score = qrpmu.get("quality_score") if qrpmu else None
+spec_check_score = avg_attribute_score(spec_check)
 
 available_components = []
 if reviews_score is not None:
@@ -510,6 +533,10 @@ if pac_score is not None:
     available_components.append((pac_weight, pac_score))
 if mqr_score is not None:
     available_components.append((mqr_weight, mqr_score))
+if spec_check_score is not None:
+    available_components.append((spec_check_weight, spec_check_score))
+if depot_checks_score is not None:
+    available_components.append((depot_checks_weight, depot_checks_score))
 if qrpmu_score is not None:
     available_components.append((qrpmu_weight, qrpmu_score))
 
@@ -533,6 +560,7 @@ base_product_info = (
     (pac or {}).get("product_info") or
     (mqr or {}).get("product_info") or
     (spec_check or {}).get("product_info") or
+    (depot_checks or {}).get("product_info") or
     (qrpmu or {}).get("product_info") or
     {}
 )
@@ -557,6 +585,8 @@ configured_total_weight = (
     panel_weight +
     pac_weight +
     mqr_weight +
+    spec_check_weight +
+    depot_checks_weight +
     qrpmu_weight
 )
 if available_total_weight > 0 and abs(available_total_weight - 1.0) > 0.001:
@@ -570,19 +600,21 @@ elif configured_total_weight > 0 and available_total_weight == 0:
 # ---------------------------
 # Top KPIs
 # ---------------------------
-c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns(9)
 c1.metric("Quality Score", format_metric_value(QCI))
 c2.metric("Reviews Score", format_metric_value(reviews_score))
 c3.metric("Complaints Score", format_metric_value(complaints_score))
 c4.metric("Panel Score", format_metric_value(panel_score))
 c5.metric("PAC Score", format_metric_value(pac_score))
 c6.metric("MQR Score", format_metric_value(mqr_score))
-c7.metric("QRPMU Score", format_metric_value(qrpmu_score))
+c7.metric("SPEC CHECK Score", format_metric_value(spec_check_score))
+c8.metric("Depot Checks Score", format_metric_value(depot_checks_score))
+c9.metric("QRPMU Score", format_metric_value(qrpmu_score))
 
 # ---------------------------
 # Tabs
 # ---------------------------
-tab_overall, tab_reviews, tab_complaints, tab_panel, tab_pac, tab_mqr, tab_spec_check, tab_qrpmu = st.tabs(
+tab_overall, tab_reviews, tab_complaints, tab_panel, tab_pac, tab_mqr, tab_spec_check, tab_depot_checks, tab_qrpmu = st.tabs(
     [
         "📊 Overall Summary",
         "⭐ Reviews",
@@ -591,6 +623,7 @@ tab_overall, tab_reviews, tab_complaints, tab_panel, tab_pac, tab_mqr, tab_spec_
         "🧠 PAC/CTH",
         "📋 MQR",
         "🧾 SPEC CHECK",
+        "🏬 DEPOT CHECKS",
         "📦 QRPMU"
     ]
 )
@@ -626,6 +659,7 @@ with tab_overall:
         extract_attributes(pac, "PAC"),
         extract_attributes(mqr, "MQR"),
         extract_attributes(spec_check, "SPEC CHECK"),
+        extract_attributes(depot_checks, "DEPOT CHECKS"),
         extract_attributes(qrpmu, "QRPMU")
     ], ignore_index=True)
 
@@ -734,43 +768,83 @@ with tab_spec_check:
     if not spec_check:
         render_no_data_message("SPEC CHECK")
     else:
-        spec_check_summary = (
-            spec_check.get("analysis", {})
-            .get("analysis", {})
-            .get("summary", {})
-            .get("response_summary", "")
+        st.write(spec_check.get("overall_analysis", {}).get("summary", ""))
+
+        spec_check_score = avg_attribute_score(spec_check)
+        spec_check_sentiment = (
+            spec_check.get("sentiment_analysis", {})
+            .get("overall_sentiment", {})
         )
-        if spec_check_summary:
-            st.write(spec_check_summary)
-
         survey_metadata = spec_check.get("survey_metadata", {})
+
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Survey ID", survey_metadata.get("survey_id", "N/A"))
-        c2.metric("Records", survey_metadata.get("record_count", "N/A"))
-        c3.metric("Responses", survey_metadata.get("total_responses", "N/A"))
-        c4.metric("Suppliers", len(survey_metadata.get("suppliers", [])))
+        c1.metric("SPEC CHECK Score", format_metric_value(spec_check_score))
+        c2.metric("Sentiment", spec_check_sentiment.get("label", "N/A"))
+        c3.metric("Sentiment Score", format_metric_value(spec_check_sentiment.get("score")))
+        c4.metric("Responses", format_metric_value(survey_metadata.get("total_responses")))
 
-        questions = spec_check.get("questions", [])
-        if questions:
-            rows = []
-            for question in questions:
-                for response in question.get("responses", []):
-                    metadata = response.get("metadata", {})
-                    rows.append({
-                        "Period": metadata.get("period"),
-                        "Scheduled Date": metadata.get("scheduled_date"),
-                        "Result": metadata.get("result"),
-                        "Next Step": metadata.get("next_step"),
-                        "Supplier": metadata.get("supplier"),
-                        "Spec Number": metadata.get("spec_number"),
-                        "Spec Version": metadata.get("spec_version"),
-                        "Site Name": metadata.get("site_name")
-                    })
+        render_action_plan(spec_check)
+        render_recommendations(spec_check)
+        render_attributes_analysis(spec_check)
 
-            if rows:
-                df_spec_check = pd.DataFrame(rows)
-                st.subheader("SPEC CHECK Results")
-                st.dataframe(df_spec_check, use_container_width=True)
+# ============================
+# DEPOT CHECKS
+# ============================
+with tab_depot_checks:
+    st.header("DEPOT CHECKS Summary")
+
+    if not depot_checks:
+        render_no_data_message("DEPOT CHECKS")
+    else:
+        st.write(depot_checks.get("overall_analysis", {}).get("summary", ""))
+
+        depot_quality_score = depot_checks.get("quality_score")
+        depot_metrics = depot_checks.get("metrics", {})
+        depot_timeline = depot_checks.get("timeline", [])
+
+        average_rejection_rate = depot_metrics.get("average_rejection_rate")
+        average_rejection_rate_display = (
+            f"{average_rejection_rate * 100:.2f}%"
+            if average_rejection_rate is not None
+            else "N/A"
+        )
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Quality Score", format_metric_value(depot_quality_score))
+        c2.metric("Average Rejection Rate", average_rejection_rate_display)
+        c3.metric("Lowest Quality Score", format_metric_value(depot_metrics.get("lowest_quality_score")))
+        c4.metric("Highest Risk Period", depot_metrics.get("highest_risk_period", "N/A"))
+
+        c5, c6, c7, c8 = st.columns(4)
+        c5.metric("Total Quality Checks", format_metric_value(depot_metrics.get("total_quality_checks")))
+        c6.metric("Total Rejections", format_metric_value(depot_metrics.get("total_rejections")))
+        c7.metric("Total Rework", format_metric_value(depot_metrics.get("total_rework")))
+        c8.metric("Total Advisory", format_metric_value(depot_metrics.get("total_advisory")))
+
+        c9, c10, c11, c12 = st.columns(4)
+        c9.metric("Packing Hub Advisory", format_metric_value(depot_metrics.get("total_packing_hub_advisory")))
+        c10.metric("Weighted Adverse Count", format_metric_value(depot_metrics.get("total_weighted_adverse_count")))
+        c11.metric("Adverse Periods", format_metric_value(depot_metrics.get("periods_with_adverse_outcomes")))
+        c12.metric("Total Periods", format_metric_value(depot_metrics.get("total_periods")))
+
+        if depot_timeline:
+            st.subheader("DEPOT CHECKS Timeline")
+
+            df_depot_timeline = pd.DataFrame(depot_timeline)
+
+            if "interval" in df_depot_timeline.columns and "quality_score" in df_depot_timeline.columns:
+                st.plotly_chart(
+                    px.line(
+                        df_depot_timeline,
+                        x="interval",
+                        y="quality_score",
+                        markers=True,
+                        title="Depot Checks Quality Score by Interval"
+                    ),
+                    use_container_width=True
+                )
+
+            st.dataframe(df_depot_timeline, use_container_width=True)
 
 # ============================
 # QRPMU
